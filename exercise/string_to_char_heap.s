@@ -1,13 +1,13 @@
 .data
-str: .asciiz "abc"
-newline: .asciiz "\n"
-len: .word 4
+str:        .asciiz "abc"
+newline:    .asciiz "\n"
+len:        .word   4
 
 .text
 
 main:
-la $s0, str
-lw $s1, len
+la $s0, str             # $s0 = str
+lw $s1, len             # $s1 = len
 
 # create new heap
 li $v0, 9
@@ -15,18 +15,24 @@ move $a0, $s1
 syscall
 move $s2, $v0           # $s2 = base of heap
 
-jal ToHeap
+# put each char in str to heap (** first in last out **)
+jal To_heap
 
-move $a0, $s2
-lw $a1, len
+# print each char in heap (** in reverse order **)
+move $a0, $s2           # $a0 = top of heap
+lw $a1, len             # $a1 = len to be printed
 jal Print_heap
+
+# print new line
+jal Print_newline
 
 # exit
 li $v0, 10
 syscall
 
+
 ### first in last out (stack) ###
-ToHeap:
+To_heap:
 # check whether all characters are in the heap
 lb $t0, 0($s0)
 beqz $t0, Finish_ra
@@ -37,7 +43,8 @@ sw $ra, ($sp)
 sb $t0, ($s2)           # store byte
 addi $s0, $s0, 1        # increment str
 addi $s2, $s2, 1        # increment heap
-j ToHeap
+# recurse
+j To_heap
 
 ### restore the state of $ra
 Finish_ra:
@@ -45,7 +52,8 @@ lw $ra, ($sp)
 addi $sp, $sp, 4
 jr $ra
 
-### put heap address to $a0, size to $a1
+### @param $a0 top of heap address
+###        $a1 size
 Print_heap:
 move $t0, $a0           # heap address (top)
 move $t1, $a1           # size of heap
@@ -62,9 +70,6 @@ subi $a0, $t0, 1
 subi $a1, $t1, 1
 # recurse
 j Print_heap
-
-
-
 
 Print_newline:
 # store the states of $v0 and $a0
