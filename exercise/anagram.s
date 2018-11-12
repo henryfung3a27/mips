@@ -48,8 +48,8 @@ FIND:
     beq $t0, $s2, PRINT_RESULT  # jump PRINT_RESULT if $t0==$s2 (i == n)
     addi $t0, $t0, 1            # increment $t0 (size)
     addi $t1, $t1, -4           # decrement $t1 for loading word
-    li $a2, 0                   # left of merge_sort  (0)
-    subi $a3, $s0, 2            # right of merge_sort (k-2)
+    li $a2, 0                   # $a2: left of merge_sort  (0)
+    subi $a3, $s0, 2            # $a3: right of merge_sort (k-2)
     lw $t5, ($t1)               # $t5: the string to be sorted
     jal MERGE_SORT              # return string -> $a0
     jal COMPARE                 # return value -> $a0
@@ -62,23 +62,33 @@ FIND:
 #          $a3 right
 MERGE_SORT:
     sub $t0, $a2, $a3           # $t0 = left - right
-    bgez $t0, RETURN_RA         # if left >= right return
+    bgez $t0, FINISH_RA         # if left >= right return
+    addi $sp, $sp, -4
+    sw $ra, ($sp)
 # split the string into 2
     li $t1, 2                   # $t1 = constant 2
     add $t0, $a2, $a3           # $t0 = left + right
     div $t0, $t0, $t1           # $t0 = (left + right) / 2
     mflo $t0                    # $t0 = quotient of result (mid)
     addi $sp, $sp, -12
-    sw $t0, ($sp)
-    
-    
-    
-RETURN_RA:
-    jr $ra
+    sw $t0, ($sp)               # 0($sp) = mid
+    sw $a2, 4($sp)              # 4($sp) = left
+    sw $a3, 8($sp)              # 8($sp) = right
+# MERGE_SORT LHS of array
+    move $a2, $a2               # $a2 = left
+    move $a3, $t0               # $a3 = mid
+    jal MERGE_SORT
+# MERGE_SORT RHS of array
+    addi $a2, $t0, 1            # $a2 = mid+1
+    lw $a3, 8($sp)              # $a3 = right
+    jal MERGE_SORT
+# MERGING
+
+
     
 # @param $a0 base of string_1 heap
 #        $a1 base of string_2 heap
-#        $a2 result heap
+#        $a2 base of result heap
 # after merging, $a2 will point to \0
 # e.g. $a2 = [1, 2, 3, 4, 5, 6, \0]
 #                                ^ here
@@ -106,7 +116,7 @@ CHOOSE_1:
 ### merge the remaining elements in str1
 MERGE_STR1:
     lb $t0, ($a0)               # $t0 = load byte from $a0 (str1)
-    beqz $t0, FINISH_MERGE      # return if $t0 = 0 (\0)
+    beqz $t0, FINISH_MERGING    # return if $t0 = 0 (\0)
     addi $sp, $sp, -4           # store $ra
     sw $ra, ($sp)
     sb $t0, ($a2)               # store $t0 to $a2 (result heap)
@@ -117,7 +127,7 @@ MERGE_STR1:
 ### merge the remaining elements in str2
 MERGE_STR2:
     lb $t0, ($a1)               # $t0 = load byte from $a1 (str2)
-    beqz $t0, FINISH_MERGE      # return if $t0 = 0 (\0)
+    beqz $t0, FINISH_MERGING    # return if $t0 = 0 (\0)
     addi $sp, $sp, -4           # store $ra
     sw $ra, ($sp)
     sb $t0, ($a2)               # store $t0 to $a2 (result heap)
@@ -126,7 +136,7 @@ MERGE_STR2:
     j MERGE_STR2
 
 ### put null char to the end of result heap
-FINISH_MERGE:
+FINISH_MERGING:
     sb $zero, ($a2)
     j FINISH_RA
 
@@ -167,26 +177,34 @@ FINISH_RA:
 
 ### print the result counter
 PRINT_RESULT:
-    move $a0, $s4           # $t3: result counter
+    move $a0, $s4           # $s4: result counter
     li $v0, 1               # print int
     syscall
     j EXIT                  # exit the program
     
-# @param $a0 input string
+# @param $a0 base address of input heap
 #        $a1 base address of result heap
+#        $a2 size
 # the last element in the heap will be 0 and points to it
 # i.e. $a1 = [1, 2, 3, 0] for size 4
 #                      ^ $a1 points here at the end
 TO_HEAP:
-    lb $t0, ($a0)           # $t0: load byte from string
-    addi $sp, $sp, -4       # store the state of $ra
+    beqz $a2, FINISH_TO_HEAP    # return if size = 0
+    addi $sp, $sp, -4           # store the state of $ra
     sw $ra, ($sp)
-    sb $t0, ($a1)           # store the byte from $t0 to $a1
-    addi $a0, $a0, 1        # increment $a0 (string pointer)
-    addi $a1, $a1, 1        # increment $a1 (heap pointer)
-    beqz $t0, FINISH_RA     # return if $t0 = 0 so that 
-                            # 0 will be stored before returning
+    lb $t0, ($a0)               # $t0: load byte from string
+    sb $t0, ($a1)               # store the byte from $t0 to $a1
+    addi $a0, $a0, 1            # increment $a0 (string pointer)
+    addi $a1, $a1, 1            # increment $a1 (heap pointer)
+    addi $a2, $a2, -1           # decrement $a2 (size)
     j TO_HEAP
+    
+# put 0 to the end of the heap before returning
+FINISH_TO_HEAP:
+    sb $zero, ($a1)
+    lw $ra, ($sp)
+    addi $sp, $sp, 4
+    jr $ra
 
 # @param $a0 base of heap address
 #        $a1 size
